@@ -10,6 +10,11 @@
  * !!! TESTING MODE !!!
  * - VIP Duration is set to 5 MINUTES
  * - You MUST set the Time-Driven Trigger to "Every Minute" to test this properly.
+ * 
+ * FLOW:
+ * 1. User registers -> Gets "Pending" role automatically
+ * 2. Admin approves (changes status to "approved" in sheet) -> "Pending" role removed, "Trial Access" role added
+ * 3. After 5 minutes (or 7 days in production) -> User kicked from server
  */
 
 // ============ CONFIGURATION ============
@@ -29,7 +34,10 @@ const CONFIG = {
   // Discord Server (Guild) ID
   DISCORD_GUILD_ID: '1108710714253778945',
   
-  // VIP Role ID to assign
+  // Pending Role ID (assigned when user registers, before admin approval)
+  DISCORD_PENDING_ROLE_ID: '1467623644380528832',
+  
+  // Trial Access Role ID (assigned after admin approval)
   DISCORD_VIP_ROLE_ID: '1467593168844361846',
   
   // VIP duration (FOR TESTING: Override in code to use minutes)
@@ -119,24 +127,30 @@ function doPost(e) {
     const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
     
     const rowData = [
-      data.connext_id,          
-      data.referal_ID,          
-      data.nickname,            
-      data.name,                
-      data.surname,             
-      data.province_country,    
-      data.phone_number,        
-      slipLink,                 
-      'pending',                
-      data.discord_id,          
-      data.discord_username,    
-      data.submitted_at,        
-      '',                       
-      '',                       
-      false,                    
+      data.connext_id,          // A
+      data.referal_ID,          // B
+      data.nickname,            // C
+      data.name,                // D
+      data.surname,             // E
+      data.province_country,    // F
+      data.phone_number,        // G
+      slipLink,                 // H - transfer_slip
+      'pending',                // I - status
+      data.discord_id,          // J - discord_id
+      data.discord_username,    // K - discord_username
+      data.submitted_at,        // L - submitted_at
+      '',                       // M - approved_at
+      '',                       // N - expires_at
+      false,                    // O - role_added
     ];
     
     sheet.appendRow(rowData);
+    
+    // Add Pending role to user when they register
+    if (data.discord_id) {
+      const pendingRoleAdded = addPendingRole(data.discord_id);
+      console.log(`Pending role added for ${data.discord_id}: ${pendingRoleAdded}`);
+    }
     
     return ContentService
       .createTextOutput(JSON.stringify({
@@ -156,6 +170,9 @@ function doPost(e) {
   }
 }
 
+/**
+ * Save image to Google Drive
+ */
 function saveImageToDrive(base64Data, fileName, mimeType) {
   try {
     const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
@@ -168,6 +185,9 @@ function saveImageToDrive(base64Data, fileName, mimeType) {
   }
 }
 
+/**
+ * Trigger when admin edits the sheet (changes status to approved)
+ */
 function onEdit(e) {
   const sheet = e.source.getActiveSheet();
   const range = e.range;
@@ -182,6 +202,9 @@ function onEdit(e) {
   }
 }
 
+/**
+ * Process user approval - remove Pending role, add Trial Access role
+ */
 function processApproval(sheet, row) {
   try {
     const rowData = sheet.getRange(row, 1, 1, 15).getValues()[0];
@@ -193,8 +216,11 @@ function processApproval(sheet, row) {
     }
     if (!discordId) return;
     
-    // Add Discord Role
-    const success = addDiscordRole(discordId);
+    // Remove Pending role first
+    removePendingRole(discordId);
+    
+    // Add Trial Access Role
+    const success = addTrialAccessRole(discordId);
     
     if (success) {
       const now = new Date();
@@ -207,14 +233,67 @@ function processApproval(sheet, row) {
       sheet.getRange(row, COLUMNS.EXPIRES_AT + 1).setValue(expiresAt.toISOString());
       sheet.getRange(row, COLUMNS.ROLE_ADDED + 1).setValue(true);
       
-      console.log(`✅ VIP role added involved (TESTING MODE: 5 MINS): ${discordId}`);
+      console.log(`✅ Trial Access role added (TESTING MODE: 5 MINS): ${discordId}`);
     }
   } catch (error) {
     console.error('Error processing approval:', error);
   }
 }
 
-function addDiscordRole(discordUserId) {
+/**
+ * Add Pending role to user when they register
+ */
+function addPendingRole(discordUserId) {
+  try {
+    const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}/roles/${CONFIG.DISCORD_PENDING_ROLE_ID}`;
+    const options = {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bot ${CONFIG.DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      muteHttpExceptions: true,
+    };
+    const response = UrlFetchApp.fetch(url, options);
+    if (response.getResponseCode() === 204 || response.getResponseCode() === 200) return true;
+    console.log(`Failed to add pending role: ${response.getContentText()}`);
+    return false;
+  } catch (error) {
+    console.error('Error adding pending role:', error);
+    return false;
+  }
+}
+
+/**
+ * Remove Pending role from user when approved
+ */
+function removePendingRole(discordUserId) {
+  try {
+    const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}/roles/${CONFIG.DISCORD_PENDING_ROLE_ID}`;
+    const options = {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bot ${CONFIG.DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      muteHttpExceptions: true,
+    };
+    const response = UrlFetchApp.fetch(url, options);
+    if (response.getResponseCode() === 204 || response.getResponseCode() === 200) {
+      console.log(`Pending role removed: ${discordUserId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error removing pending role:', error);
+    return false;
+  }
+}
+
+/**
+ * Add Trial Access role to user after admin approval
+ */
+function addTrialAccessRole(discordUserId) {
   try {
     const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}/roles/${CONFIG.DISCORD_VIP_ROLE_ID}`;
     const options = {
@@ -227,12 +306,17 @@ function addDiscordRole(discordUserId) {
     };
     const response = UrlFetchApp.fetch(url, options);
     if (response.getResponseCode() === 204 || response.getResponseCode() === 200) return true;
+    console.log(`Failed to add trial access role: ${response.getContentText()}`);
     return false;
   } catch (error) {
+    console.error('Error adding trial access role:', error);
     return false;
   }
 }
 
+/**
+ * Kick user from Discord server
+ */
 function kickDiscordUser(discordUserId) {
   try {
     const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}`;
@@ -249,18 +333,25 @@ function kickDiscordUser(discordUserId) {
         console.log(`User kicked: ${discordUserId}`);
         return true;
     }
+    console.log(`Failed to kick user ${discordUserId}: ${response.getContentText()}`);
     return false;
   } catch (error) {
+    console.error('Error kicking user:', error);
     return false;
   }
 }
 
+/**
+ * Check for expired members and kick them (run every minute via time-driven trigger)
+ */
 function checkExpiredMembers() {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
     const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
     const data = sheet.getDataRange().getValues();
     const now = new Date();
+    
+    console.log(`Running expiry check at ${now.toISOString()}`);
     
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
@@ -273,12 +364,15 @@ function checkExpiredMembers() {
       
       if (expiresAt) {
         const expiryDate = new Date(expiresAt);
+        console.log(`Checking user ${discordId}: expires at ${expiryDate.toISOString()}, now is ${now.toISOString()}`);
+        
         if (now > expiryDate) {
-          console.log(`Expiring member: ${discordId}`);
+          console.log(`⏰ Expiring member: ${discordId}`);
           const success = kickDiscordUser(discordId);
           if (success) {
             sheet.getRange(i + 1, COLUMNS.STATUS + 1).setValue('expired');
             sheet.getRange(i + 1, COLUMNS.ROLE_ADDED + 1).setValue(false);
+            console.log(`✅ Member expired and kicked: ${discordId}`);
           }
         }
       }
@@ -286,4 +380,11 @@ function checkExpiredMembers() {
   } catch (error) {
     console.error('Error checking expired members:', error);
   }
+}
+
+/**
+ * Manual test function - run this to test the expiry check
+ */
+function testCheckExpiredMembers() {
+  checkExpiredMembers();
 }

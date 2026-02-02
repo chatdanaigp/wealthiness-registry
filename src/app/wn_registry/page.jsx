@@ -501,7 +501,7 @@ export default function RegisterPage() {
                         <div className="pt-6 border-t border-white/10">
                             <p className="text-white font-semibold mb-4 text-lg">⚡ ขั้นตอนถัดไป: เข้าร่วม Discord Server</p>
                             <a
-                                href="https://discord.gg/TvzpxV7Wzx"
+                                href="https://discord.gg/MSD6nnSH3j"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="btn-discord inline-flex gap-2"
@@ -552,7 +552,7 @@ export default function RegisterPage() {
                         </div>
 
                         <a
-                            href="https://discord.gg/TvzpxV7Wzx"
+                            href="https://discord.gg/MSD6nnSH3j"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn-discord inline-flex gap-2 w-full justify-center"

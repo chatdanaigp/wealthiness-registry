@@ -176,10 +176,10 @@ export default function RegisterPage() {
         <main className="min-h-screen relative overflow-hidden">
             {/* Background Effects */}
             <div className="absolute inset-0">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gold/10 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-gold-light/5 rounded-full blur-3xl"></div>
+                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-wealth/10 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-wealth-light/5 rounded-full blur-3xl"></div>
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-discord/5 rounded-full blur-3xl"></div>
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(212,175,55,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(212,175,55,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(37,99,235,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(37,99,235,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
             </div>
 
             <div className="relative z-10 max-w-2xl mx-auto px-4 py-12 sm:py-20">
@@ -195,11 +195,11 @@ export default function RegisterPage() {
                 {/* Header */}
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
-                        <Crown className="w-4 h-4 text-gold" />
-                        <span className="text-sm text-gold font-medium">7-Day VIP Access</span>
+                        <Crown className="w-4 h-4 text-wealth-light" />
+                        <span className="text-sm text-wealth-light font-medium">7-Day VIP Access</span>
                     </div>
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-                        <span className="gold-gradient">ลงทะเบียนสมาชิก</span>
+                        <span className="wealth-gradient">ลงทะเบียนสมาชิก</span>
                     </h1>
                     <p className="text-text-secondary text-lg">
                         เข้าร่วม Wealthiness Trading Community
@@ -271,7 +271,7 @@ export default function RegisterPage() {
                         )}
 
                         <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-gold" />
+                            <Sparkles className="w-5 h-5 text-wealth" />
                             กรอกข้อมูลลงทะเบียน
                         </h2>
 
@@ -432,7 +432,7 @@ export default function RegisterPage() {
                                         </div>
                                     ) : (
                                         <div>
-                                            <Upload className="w-10 h-10 text-gold mx-auto mb-2" />
+                                            <Upload className="w-10 h-10 text-wealth mx-auto mb-2" />
                                             <p className="text-white font-medium">คลิกเพื่ออัพโหลดรูปภาพ</p>
                                             <p className="text-text-secondary text-sm mt-1">PNG, JPG หรือ JPEG (สูงสุด 10MB)</p>
                                         </div>
@@ -444,7 +444,7 @@ export default function RegisterPage() {
                             <button
                                 type="submit"
                                 disabled={!isFormValid() || isLoading}
-                                className="btn-gold w-full py-4 text-lg mt-6"
+                                className="btn-wealth w-full py-4 text-lg mt-6"
                             >
                                 {isLoading ? (
                                     <>
@@ -465,12 +465,12 @@ export default function RegisterPage() {
                 {/* Pending Approval Step */}
                 {step === 'pending' && (
                     <div className="glass rounded-2xl p-8 sm:p-12 text-center animate-fadeIn">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gold/20 to-gold-light/20 flex items-center justify-center mx-auto mb-6 animate-pulse-gold">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-wealth/20 to-wealth-light/20 flex items-center justify-center mx-auto mb-6 animate-pulse-wealth">
                             <CheckCircle className="w-12 h-12 text-green" />
                         </div>
 
                         <h2 className="text-2xl sm:text-3xl font-bold mb-4">
-                            <span className="gold-gradient">รอการอนุมัติ</span>
+                            <span className="wealth-gradient">รอการอนุมัติ</span>
                         </h2>
 
                         <p className="text-text-secondary text-lg mb-6">
@@ -479,8 +479,8 @@ export default function RegisterPage() {
                         </p>
 
                         <div className="glass rounded-xl p-4 inline-flex items-center gap-3 mb-8">
-                            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-                            <span className="text-yellow-500 font-medium">รอการตรวจสอบ</span>
+                            <div className="w-3 h-3 bg-wealth-light rounded-full animate-pulse"></div>
+                            <span className="text-wealth-light font-medium">รอการตรวจสอบ</span>
                         </div>
 
                         <div className="space-y-3 text-text-secondary text-sm max-w-md mx-auto mb-8">
@@ -528,9 +528,9 @@ export default function RegisterPage() {
                             <span className="text-white">คุณได้รับสิทธิ์ VIP แล้ว</span>
                         </h2>
 
-                        <div className="glass rounded-xl p-6 mb-8 border border-gold/30">
+                        <div className="glass rounded-xl p-6 mb-8 border border-wealth/30">
                             <p className="text-text-secondary mb-2">สถานะสมาชิก</p>
-                            <div className="flex items-center justify-center gap-2 text-gold text-xl font-bold mb-4">
+                            <div className="flex items-center justify-center gap-2 text-wealth-light text-xl font-bold mb-4">
                                 <Crown className="w-6 h-6" />
                                 7-Day VIP Access
                             </div>

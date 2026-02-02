@@ -163,6 +163,7 @@ export default function RegisterPage() {
     const isFormValid = () => {
         return (
             formData.connextId &&
+            formData.referalId &&
             formData.nickname &&
             formData.name &&
             formData.surname &&
@@ -312,15 +313,16 @@ export default function RegisterPage() {
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
                                     <UserPlus className="w-4 h-4 inline mr-1" />
-                                    Referal ID <span className="text-text-secondary">(ถ้ามี)</span>
+                                    Referal ID <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     name="referalId"
                                     value={formData.referalId}
                                     onChange={handleInputChange}
-                                    placeholder="ID ผู้แนะนำ (ไม่บังคับ)"
+                                    placeholder="ID ผู้แนะนำ"
                                     className="form-input"
+                                    required
                                 />
                             </div>
 

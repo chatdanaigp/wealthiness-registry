@@ -400,7 +400,7 @@ client.once('ready', () => {
     console.log(`\n📋 Role Configuration:`);
     console.log(`   Pending: ${PENDING_ROLE_ID}`);
     console.log(`   Trial:   ${TRIAL_ROLE_ID}`);
-    console.log(`\n⏱️  Trial Duration: ${TRIAL_DURATION_MINUTES} minutes`);
+    console.log(`\n⏱️  Trial Duration: ${TRIAL_DURATION_MINUTES} minutes (${process.env.TRIAL_DURATION_MINUTES ? 'from Env Var' : 'using Default'})`);
     console.log(`🔗 Apps Script: ${GOOGLE_APPS_SCRIPT_URL ? 'Configured ✓' : 'NOT CONFIGURED ❌'}`);
     console.log(`⏱️  Polling: Every ${POLL_INTERVAL / 1000}s`);
     console.log(`${'='.repeat(60)}\n`);

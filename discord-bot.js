@@ -102,6 +102,9 @@ function getThailandTime(date = new Date()) {
 // ============================================
 // API: Fetch approved registrations
 // ============================================
+// Secure key to access Apps Script (Must match Apps Script CONFIG)
+const BOT_SECRET = 'wealthiness-secure-v1';
+
 async function fetchApprovedRegistrations() {
     if (!GOOGLE_APPS_SCRIPT_URL) {
         console.log('⚠️  GOOGLE_APPS_SCRIPT_URL not configured');
@@ -109,7 +112,8 @@ async function fetchApprovedRegistrations() {
     }
 
     try {
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getApproved`);
+        // Add secret to URL to bypass Ghost Bot block
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getApproved&bot_secret=${BOT_SECRET}`);
         const result = await response.json();
 
         if (result.success) {
@@ -120,6 +124,28 @@ async function fetchApprovedRegistrations() {
         }
     } catch (error) {
         console.error('❌ Fetch error:', error.message);
+        return [];
+    }
+}
+
+// ============================================
+// API: Fetch EXPIRED registrations (Robust 7-day check)
+// ============================================
+async function fetchExpiredRegistrations() {
+    if (!GOOGLE_APPS_SCRIPT_URL) return [];
+
+    try {
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getExpired&bot_secret=${BOT_SECRET}`);
+        const result = await response.json();
+
+        if (result.success) {
+            return result.data || [];
+        } else {
+            console.error('❌ Failed to fetch expired:', result.error);
+            return [];
+        }
+    } catch (error) {
+        console.error('❌ Fetch expired error:', error.message);
         return [];
     }
 }
@@ -246,204 +272,198 @@ async function startTrialTimer(guild, discordId, userName, rowIndex) {
 // ============================================
 // Kick Trial User on Expiry
 // ============================================
-async function kickTrialUser(guild, discordId, userName, rowIndex) {
-    console.log(`\n⏱️ Trial expired for ${userName}`);
+// ============================================
+// Process Expiry (Poll-based)
+// ============================================
+async function processExpiredRegistrations() {
+    console.log('💀 Polling for expired registrations...');
+    const expiredUsers = await fetchExpiredRegistrations();
+
+    if (expiredUsers.length === 0) {
+        return;
+    }
+
+    console.log(`   Found ${expiredUsers.length} expired users to kick`);
+
+    for (const user of expiredUsers) {
+        await kickExpiredUser(user);
+    }
+}
+
+async function kickExpiredUser(userData) {
+    const guild = client.guilds.cache.get(DISCORD_GUILD_ID);
+    if (!guild) return;
 
     try {
-        const member = await guild.members.fetch(discordId).catch(() => null);
+        const member = await guild.members.fetch(userData.discordId).catch(() => null);
+
+        // Update Sheet first to prevent loops
+        await updateStatus(userData.rowIndex, 'expired');
 
         if (member) {
-            // Send DM before kicking
-            await sendTrialExpiryDM(member.user, userName);
-
-            // Kick the member
-            await member.kick('Trial Access period expired');
-            console.log(`   ✅ Kicked ${member.user.tag} - Trial expired`);
+            await member.send(`⛔ **หมดเวลาทดลองใช้งาน**\n\nสิทธิ์ Trial Access ของคุณหมดอายุแล้ว หากต้องการใช้งานต่อ กรุณาติดต่อทีมงานเพื่อสมัครสมาชิก\n\nขอบคุณที่สนใจ Master Signal ครับ! 🙏`).catch(() => { });
+            await member.kick('Trial duration expired');
+            console.log(`👢 Kicked user ${userData.name} (ID: ${userData.discordId}) - Expired`);
         } else {
-            console.log(`   ℹ️ Member ${discordId} already left the server`);
+            console.log(`👻 User ${userData.discordId} not found in server, but marked as expired in sheet.`);
         }
-
-        // Update status in Google Sheets
-        const updated = await updateStatus(rowIndex, 'expired');
-        if (updated) {
-            console.log(`   ✅ Status updated to "expired"`);
-        }
-
-        // Remove from active trials
-        activeTrials.delete(discordId);
 
     } catch (error) {
-        console.error(`   ❌ Failed to kick trial user ${discordId}:`, error.message);
+        console.error(`❌ Error kicking user ${userData.discordId}:`, error.message);
     }
 }
 
 // ============================================
-// Process Approval: Remove Pending, Add Trial Access
+// Process Approved Registrations
 // ============================================
-async function processApproval(guild, registration) {
-    const { rowIndex, discordId, name, surname, discordInfo } = registration;
-    const userName = `${name} ${surname}`;
+async function processApprovedRegistrations() {
+    console.log('🔄 Polling for approved registrations...');
+    const registrations = await fetchApprovedRegistrations();
 
-    console.log(`\n🔄 Processing approval: ${userName}`);
-    console.log(`   Discord: ${discordInfo}`);
-    console.log(`   Row: ${rowIndex}`);
+    if (registrations.length === 0) {
+        console.log('   No pending approved registrations');
+        return;
+    }
+
+    console.log(`   Found ${registrations.length} registrations to process`);
+
+    for (const reg of registrations) {
+        if (processedRows.has(reg.rowIndex)) continue; // Skip if already processing in this cycle
+
+        await processApproval(reg);
+    }
+}
+
+async function processApproval(reg) {
+    processedRows.add(reg.rowIndex);
+    console.log(`▶️  Processing: ${reg.name} ${reg.surname} (Discord: ${reg.discordInfo})`);
+
+    const guild = client.guilds.cache.get(DISCORD_GUILD_ID);
+    if (!guild) {
+        console.error('❌ Guild not found');
+        return;
+    }
 
     try {
-        const member = await guild.members.fetch(discordId).catch(() => null);
+        // 1. Find Member
+        const member = await guild.members.fetch(reg.discordId).catch(() => null);
 
         if (!member) {
-            console.log(`   ❌ Member ${discordId} not found in server`);
-            return false;
+            console.error(`❌ Member not found in Discord: ${reg.discordId}`);
+            processedRows.delete(reg.rowIndex);
+            return;
         }
 
-        // Remove Pending role
-        const pendingRole = guild.roles.cache.get(PENDING_ROLE_ID);
-        if (pendingRole && member.roles.cache.has(PENDING_ROLE_ID)) {
-            await member.roles.remove(pendingRole);
-            console.log(`   ✅ Removed Pending role`);
-        }
-
-        // Add Trial Access role
+        // 2. Add Trial Role
         const trialRole = guild.roles.cache.get(TRIAL_ROLE_ID);
         if (trialRole) {
             await member.roles.add(trialRole);
-            console.log(`   ✅ Added Trial Access role`);
+            console.log(`   Added Trial Role to ${reg.discordId}`);
         } else {
-            console.log(`   ❌ Trial Access role not found: ${TRIAL_ROLE_ID}`);
-            return false;
+            console.error('❌ Trial Role not found');
         }
 
-        // Send welcome DM
-        await sendTrialWelcomeDM(member.user, userName, TRIAL_DURATION_MINUTES);
-
-        // Start expiry timer
-        await startTrialTimer(guild, discordId, userName, rowIndex);
-
-        return true;
-
-    } catch (error) {
-        console.error(`   ❌ Error processing approval:`, error.message);
-        return false;
-    }
-}
-
-// ============================================
-// Main Polling Function
-// ============================================
-async function processApprovedRegistrations() {
-    console.log(`\n🔄 [${new Date().toLocaleTimeString()}] Polling for approved registrations...`);
-
-    try {
-        const approved = await fetchApprovedRegistrations();
-
-        if (approved.length === 0) {
-            console.log(`   ℹ️ No pending approved registrations`);
-            return;
-        }
-
-        console.log(`📋 Found ${approved.length} approved registration(s)`);
-
-        const guild = client.guilds.cache.get(DISCORD_GUILD_ID);
-        if (!guild) {
-            console.log('❌ Guild not found. Check DISCORD_GUILD_ID');
-            return;
-        }
-
-        for (const registration of approved) {
-            const rowKey = `${registration.rowIndex}-${registration.connextId}`;
-
-            // Skip if already processed
-            if (processedRows.has(rowKey)) {
-                continue;
-            }
-
-            const success = await processApproval(guild, registration);
-
-            if (success) {
-                processedRows.add(rowKey);
-            }
-        }
-    } catch (error) {
-        console.error('❌ Error processing registrations:', error.message);
-    }
-}
-
-// ============================================
-// Event: New Member Joins
-// ============================================
-client.on('guildMemberAdd', async (member) => {
-    if (member.guild.id !== DISCORD_GUILD_ID) return;
-
-    console.log(`\n👋 New member joined: ${member.user.tag} (${member.id})`);
-
-    try {
-        // Add Pending role
-        const pendingRole = member.guild.roles.cache.get(PENDING_ROLE_ID);
+        // 3. Remove Pending Role
+        const pendingRole = guild.roles.cache.get(PENDING_ROLE_ID);
         if (pendingRole) {
-            await member.roles.add(pendingRole);
-            console.log(`   ✅ Added Pending role to ${member.user.tag}`);
-        } else {
-            console.log(`   ❌ Pending role not found: ${PENDING_ROLE_ID}`);
+            try {
+                await member.roles.remove(pendingRole);
+                console.log(`   Removed Pending Role from ${reg.discordId}`);
+            } catch (e) {
+                // Ignore if they don't have it
+            }
         }
+
+        // 4. Calculate Expiry
+        const startTime = Date.now();
+        const endTime = startTime + TRIAL_DURATION_MS;
+        const endTimeDate = new Date(endTime);
+        const expireAtStr = getThailandTime(endTimeDate);
+
+        // 5. Send DM
+        await sendTrialWelcomeDM(member.user, reg.name, TRIAL_DURATION_MINUTES);
+
+        // 6. Update Status in Sheet
+        // Use "Trial Access Active" + Secret Indicator if needed? No, just Standard active is fine
+        // because we block the ghost bot at the GET level.
+        const success = await updateStatus(reg.rowIndex, 'Trial Access Active', expireAtStr);
+
+        if (success) {
+            console.log(`✅  Process Complete for ${reg.name}`);
+
+            // Note: We NO LONGER set a setTimeout for 7 days because it's unreliable.
+            // We rely on 'processExpiredRegistrations' polling.
+
+        } else {
+            console.error('❌ Failed to update status in sheet');
+        }
+
     } catch (error) {
-        console.error(`   ❌ Failed to add Pending role:`, error.message);
+        console.error(`❌ Error processing ${reg.name}:`, error.message);
+        processedRows.delete(reg.rowIndex);
     }
-});
+}
+
+// Kick Trial User Legacy Function (Removed/Replaced)
+// kept clean main logic below
 
 // ============================================
-// Event: Bot Ready
+// Main Bot Logic
 // ============================================
 client.once('ready', () => {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`🤖 Bot: ${client.user.tag}`);
-    console.log(`🏠 Guild: ${DISCORD_GUILD_ID}`);
-    console.log(`\n📋 Role Configuration:`);
-    console.log(`   Pending: ${PENDING_ROLE_ID}`);
-    console.log(`   Trial:   ${TRIAL_ROLE_ID}`);
-    console.log(`\n⏱️  Trial Duration: ${TRIAL_DURATION_MINUTES} minutes (${process.env.TRIAL_DURATION_MINUTES ? 'from Env Var' : 'using Default'})`);
-    console.log(`🔗 Apps Script: ${GOOGLE_APPS_SCRIPT_URL ? 'Configured ✓' : 'NOT CONFIGURED ❌'}`);
-    console.log(`⏱️  Polling: Every ${POLL_INTERVAL / 1000}s`);
-    console.log(`${'='.repeat(60)}\n`);
+    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`Bot is ready and polling every ${POLL_INTERVAL / 1000} seconds`);
 
-    // Initial check
-    processApprovedRegistrations();
+    // Initial Poll
+    if (GOOGLE_APPS_SCRIPT_URL) {
+        processApprovedRegistrations();
+        setTimeout(processExpiredRegistrations, 5000); // Check expiry shortly after start
+    }
 
-    // Set up polling interval
-    setInterval(processApprovedRegistrations, POLL_INTERVAL);
+    // Set Interval
+    setInterval(() => {
+        if (GOOGLE_APPS_SCRIPT_URL) {
+            processApprovedRegistrations();
+
+            // Poll expiry every minute (every 2 cycles of 30s)
+            if (Date.now() % 60000 < 35000) {
+                processExpiredRegistrations();
+            }
+        }
+    }, POLL_INTERVAL);
 });
 
-// ============================================
-// Error Handling
-// ============================================
-client.on('error', (error) => {
-    console.error('Discord client error:', error);
+// Member Join Event (Add Pending Role)
+client.on('guildMemberAdd', async member => {
+    console.log(`User joined: ${member.user.tag} (${member.id})`);
+
+    const pendingRole = member.guild.roles.cache.get(PENDING_ROLE_ID);
+    if (pendingRole) {
+        try {
+            await member.roles.add(pendingRole);
+            console.log(`Allowed 'Pending' role to ${member.user.tag}`);
+        } catch (error) {
+            console.error(`Failed to assign role: ${error.message}`);
+        }
+    } else {
+        console.error(`Pending Role ID ${PENDING_ROLE_ID} not found`);
+    }
 });
 
-process.on('unhandledRejection', (error) => {
-    console.error('Unhandled promise rejection:', error);
+// Message Event (for testing/ping)
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+
+    if (message.content === '!ping') {
+        await message.reply('Pong! 🏓');
+    }
 });
 
-// ============================================
-// Start Bot
-// ============================================
-console.log('🚀 Starting Wealthiness Registry Bot...');
-
-if (!DISCORD_BOT_TOKEN) {
-    console.error('❌ DISCORD_BOT_TOKEN not found');
-    process.exit(1);
+// Login
+if (DISCORD_BOT_TOKEN) {
+    client.login(DISCORD_BOT_TOKEN).catch(err => {
+        console.error('Login failed:', err.message);
+    });
+} else {
+    console.error('DISCORD_BOT_TOKEN is missing in .env');
 }
-
-if (!GOOGLE_APPS_SCRIPT_URL) {
-    console.error('❌ GOOGLE_APPS_SCRIPT_URL not found');
-    process.exit(1);
-}
-
-if (!DISCORD_GUILD_ID) {
-    console.error('❌ DISCORD_GUILD_ID not found');
-    process.exit(1);
-}
-
-client.login(DISCORD_BOT_TOKEN).catch((error) => {
-    console.error('❌ Failed to login:', error.message);
-    process.exit(1);
-});

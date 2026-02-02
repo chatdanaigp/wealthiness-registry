@@ -20,6 +20,8 @@ const CONFIG = {
   SHEET_NAME: 'data',
   DRIVE_FOLDER_ID: '1UoPSQt47fRQVbn265BhSqHp0GRPFUIVy',
   TIMEZONE: 'Asia/Bangkok',
+  // Secret key to prevent unauthorized bots (Ghost Bots)
+  BOT_SECRET: 'wealthiness-secure-v1'
 };
 
 // Column indices (0-based)
@@ -52,10 +54,25 @@ function doGet(e) {
   try {
     const params = e.parameter;
     const action = params.action;
+    const secret = params.bot_secret;
+
+    // Security Check: Block requests without correct secret
+    // This stops the "Ghost Bot" from fetching approved users
+    if (action === 'getApproved' && secret !== CONFIG.BOT_SECRET) {
+       return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: 'Unauthorized: Invalid Bot Secret'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
 
     // Get approved registrations for bot
     if (action === 'getApproved') {
       return getApprovedRegistrations();
+    }
+
+    // Get expired registrations (New robust expiry logic)
+    if (action === 'getExpired') {
+      return getExpiredRegistrations();
     }
 
     // Get all pending for status check
@@ -93,6 +110,7 @@ function getApprovedRegistrations() {
     const status = String(row[COLUMNS.STATUS] || '').toLowerCase().trim();
     
     // Only get "Approved Trial Access" that hasn't been processed yet
+    // Exclude 'active', 'expired', 'done'
     if (status.includes('approved') && !status.includes('done') && !status.includes('active') && !status.includes('expired')) {
       const discordInfo = String(row[COLUMNS.DISCORD_ID] || '');
       const discordIdMatch = discordInfo.match(/\((\d+)\)/);
@@ -121,6 +139,56 @@ function getApprovedRegistrations() {
 }
 
 /**
+ * Get expired registrations (status contains "active" and expire_at < now)
+ */
+function getExpiredRegistrations() {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+  const now = new Date();
+  
+  const expired = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const status = String(row[COLUMNS.STATUS] || '').toLowerCase().trim();
+    const expireAtStr = String(row[COLUMNS.EXPIRE_AT] || '');
+    
+    // Check if status is Active
+    if (status.includes('active') && !status.includes('expired')) {
+      if (expireAtStr) {
+        // Parse expireAt (Assuming YYYY-MM-DD HH:mm:ss format from getThailandTime)
+        // Note: Date.parse might need tweaks depending on locale, but standard ISO works mostly
+        const expireDate = new Date(expireAtStr);
+        
+        // If expiry date is valid and in the past
+        if (!isNaN(expireDate.getTime()) && expireDate < now) {
+           const discordInfo = String(row[COLUMNS.DISCORD_ID] || '');
+           const discordIdMatch = discordInfo.match(/\((\d+)\)/);
+           const discordId = discordIdMatch ? discordIdMatch[1] : null;
+
+           if (discordId) {
+             expired.push({
+               rowIndex: i + 1,
+               discordId: discordId,
+               name: row[COLUMNS.NAME],
+               surname: row[COLUMNS.SURNAME],
+               expireAt: expireAtStr
+             });
+           }
+        }
+      }
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    data: expired,
+    count: expired.length
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
  * Get pending registrations (for checking new users)
  */
 function getPendingRegistrations() {
@@ -134,6 +202,7 @@ function getPendingRegistrations() {
     const row = data[i];
     const status = String(row[COLUMNS.STATUS] || '').toLowerCase().trim();
     
+    // Status must be exactly 'pending'
     if (status === 'pending') {
       const discordInfo = String(row[COLUMNS.DISCORD_ID] || '');
       const discordIdMatch = discordInfo.match(/\((\d+)\)/);

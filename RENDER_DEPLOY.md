@@ -34,7 +34,7 @@
    DISCORD_PENDING_ROLE_ID=1467623644380528832
    DISCORD_TRIAL_ROLE_ID=1467593168844361846
    GOOGLE_APPS_SCRIPT_URL=your_apps_script_url
-   TRIAL_DURATION_MINUTES=3
+   TRIAL_DURATION_MINUTES=10080
    PORT=10000
    ```
 
@@ -66,4 +66,4 @@ Bot จะทำงาน 24/7 บน Render ฟรี
 ### ทดสอบ Bot
 1. เปลี่ยน status ใน Google Sheet เป็น `Approved Trial Access`
 2. รอ 30 วินาที Bot จะ detect และให้ Trial Access role
-3. รอ 3 นาที (หรือตาม TRIAL_DURATION_MINUTES) Bot จะเตะ User ออก
+3. รอ 7 วัน (หรือตาม TRIAL_DURATION_MINUTES) Bot จะเตะ User ออก

@@ -60,7 +60,7 @@ const PENDING_ROLE_ID = process.env.DISCORD_PENDING_ROLE_ID || '1467623644380528
 const TRIAL_ROLE_ID = process.env.DISCORD_TRIAL_ROLE_ID || '1467593168844361846';
 
 // Trial Duration (in milliseconds)
-const TRIAL_DURATION_MINUTES = parseInt(process.env.TRIAL_DURATION_MINUTES) || 3;
+const TRIAL_DURATION_MINUTES = parseInt(process.env.TRIAL_DURATION_MINUTES) || 10080; // Default 7 days (7 * 24 * 60)
 const TRIAL_DURATION_MS = TRIAL_DURATION_MINUTES * 60 * 1000;
 
 // Polling interval (30 seconds)
@@ -153,12 +153,21 @@ async function updateStatus(rowIndex, newStatus, expireAt = null) {
 // ============================================
 async function sendTrialWelcomeDM(user, userName, durationMinutes) {
     try {
+        let durationText = `${durationMinutes} นาที`;
+        if (durationMinutes >= 1440) {
+            const days = Math.floor(durationMinutes / 1440);
+            durationText = `${days} วัน`;
+        } else if (durationMinutes >= 60) {
+            const hours = Math.floor(durationMinutes / 60);
+            durationText = `${hours} ชั่วโมง`;
+        }
+
         const embed = new EmbedBuilder()
-            .setColor(0xFFA500)
+            .setColor(0x2563EB) // Wealth Blue
             .setTitle(`⏱️ ยินดีต้อนรับสู่ Trial Access!`)
             .setDescription(`สวัสดีคุณ **${userName}**!\n\nคุณได้รับ **Trial Access** เรียบร้อยแล้ว`)
             .addFields(
-                { name: '⏰ ระยะเวลาทดลองใช้งาน', value: `**${durationMinutes} นาที**`, inline: true },
+                { name: '⏰ ระยะเวลาทดลองใช้งาน', value: `**${durationText}**`, inline: true },
                 { name: '⚠️ หมายเหตุ', value: 'เมื่อหมดเวลาทดลองใช้งาน คุณจะถูกนำออกจาก Server โดยอัตโนมัติ', inline: false }
             )
             .setFooter({ text: 'Master Signal | Trial Access' })

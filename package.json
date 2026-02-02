@@ -1,19 +1,22 @@
 {
-  "name": "trading-verification-portal",
+  "name": "wealthiness-registry",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "start:bot": "node discord-bot.js"
   },
   "dependencies": {
     "next": "14.2.21",
     "react": "^18",
     "react-dom": "^18",
     "next-auth": "^4.24.11",
-    "lucide-react": "^0.469.0"
+    "lucide-react": "^0.469.0",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "@types/node": "^20",

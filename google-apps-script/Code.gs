@@ -1,20 +1,17 @@
 /**
- * Wealthiness Registry - Google Apps Script (TEST VERSION - 5 MINUTE EXPIRY)
+ * Wealthiness Registry - Google Apps Script
  * 
- * !!! IMPORTANT: HEADER ROW STRUCTURE !!!
- * Row 1 MUST have these headers in exact order:
+ * Deploy as Web App:
+ * 1. Deploy > New deployment
+ * 2. Type: Web app
+ * 3. Execute as: Me
+ * 4. Who has access: Anyone
+ * 5. Deploy > Copy URL
+ * 
+ * HEADER ROW (Row 1):
  * A: connext_id | B: referal_ID | C: nickname | D: name | E: surname
- * F: province_country | G: phone_number | H: transfer_slip | I: status
- * J: discord_id | K: expire_at | L: submitted_at | M: approved_at | N: role_added
- * 
- * FLOW:
- * 1. User registers -> Gets "Pending" Role -> Sees #waiting-room only
- * 2. Admin changes status to "Approved Trial Access" -> Pending removed, Trial Access added
- * 3. After 5 minutes -> User kicked from server
- * 
- * TRIGGERS NEEDED:
- * - onEdit: Installable trigger for editing (simple trigger doesn't work for external API calls)
- * - checkExpiredMembers: Time-driven trigger, every 1 minute
+ * F: province_country | G: phone_number | H: discord_id | I: transfer_slip
+ * J: status | K: submitted_at | L: expire_at
  */
 
 // ============ CONFIGURATION ============
@@ -22,11 +19,6 @@ const CONFIG = {
   SHEET_ID: '1m4lWxWdMOvKMQWMbbAB2UHvH4VOgbg1zBwBdRBXGWOM',
   SHEET_NAME: 'data',
   DRIVE_FOLDER_ID: '1UoPSQt47fRQVbn265BhSqHp0GRPFUIVy',
-  DISCORD_BOT_TOKEN: 'MTQ2NzU2OTk2MDg3OTUyMTg3Mg.G1v6vi.5n3X1HHAddneaa1YZIBT7PtcnnGQuaAB0HAjaw',
-  DISCORD_GUILD_ID: '1108710714253778945',
-  DISCORD_PENDING_ROLE_ID: '1467623644380528832',
-  DISCORD_VIP_ROLE_ID: '1467593168844361846',
-  VIP_DURATION_MINUTES: 5,
   TIMEZONE: 'Asia/Bangkok',
 };
 
@@ -39,123 +31,238 @@ const COLUMNS = {
   SURNAME: 4,           // E
   PROVINCE_COUNTRY: 5,  // F
   PHONE_NUMBER: 6,      // G
-  TRANSFER_SLIP: 7,     // H
-  STATUS: 8,            // I
-  DISCORD_ID: 9,        // J - format: username (ID)
-  EXPIRE_AT: 10,        // K - expiry time (Thailand)
-  SUBMITTED_AT: 11,     // L
-  APPROVED_AT: 12,      // M
-  ROLE_ADDED: 13,       // N
+  DISCORD_ID: 7,        // H - format: username (ID)
+  TRANSFER_SLIP: 8,     // I - Drive link
+  STATUS: 9,            // J - pending/Approved Trial Access/expired
+  SUBMITTED_AT: 10,     // K
+  EXPIRE_AT: 11,        // L
 };
 
+/**
+ * Get current Thailand time as formatted string
+ */
 function getThailandTime(date = new Date()) {
   return Utilities.formatDate(date, CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
 }
 
+/**
+ * Handle GET requests - Return data for Discord bot polling
+ */
 function doGet(e) {
   try {
     const params = e.parameter;
-    const searchUsername = params.username;
-    
-    if (!searchUsername) {
-      return ContentService.createTextOutput(JSON.stringify({ 
-        found: false, 
-        message: 'No username provided' 
-      })).setMimeType(ContentService.MimeType.JSON);
+    const action = params.action;
+
+    // Get approved registrations for bot
+    if (action === 'getApproved') {
+      return getApprovedRegistrations();
     }
 
-    const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
-    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const discordInfo = String(row[COLUMNS.DISCORD_ID] || '');
-      
-      if (discordInfo.toLowerCase().includes(searchUsername.toLowerCase())) {
-        return ContentService.createTextOutput(JSON.stringify({
-          found: true,
-          status: row[COLUMNS.STATUS],
-          expiresAt: row[COLUMNS.EXPIRE_AT],
-          discordInfo: discordInfo
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
+    // Get all pending for status check
+    if (action === 'getPending') {
+      return getPendingRegistrations();
     }
-    
+
+    // Default: return status
     return ContentService.createTextOutput(JSON.stringify({
-      found: false,
-      message: 'User not found'
+      success: true,
+      message: 'Wealthiness Registry API',
+      timestamp: getThailandTime()
     })).setMimeType(ContentService.MimeType.JSON);
-    
+
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({
+      success: false,
       error: error.message
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
+/**
+ * Get approved registrations (status contains "approved" but not processed)
+ */
+function getApprovedRegistrations() {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+  
+  const approved = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const status = String(row[COLUMNS.STATUS] || '').toLowerCase().trim();
+    
+    // Only get "Approved Trial Access" that hasn't been processed yet
+    if (status.includes('approved') && !status.includes('done') && !status.includes('active') && !status.includes('expired')) {
+      const discordInfo = String(row[COLUMNS.DISCORD_ID] || '');
+      const discordIdMatch = discordInfo.match(/\((\d+)\)/);
+      const discordId = discordIdMatch ? discordIdMatch[1] : null;
+      
+      if (discordId) {
+        approved.push({
+          rowIndex: i + 1, // 1-based for sheets
+          connextId: row[COLUMNS.CONNEXT_ID],
+          name: row[COLUMNS.NAME],
+          surname: row[COLUMNS.SURNAME],
+          discordId: discordId,
+          discordInfo: discordInfo,
+          status: row[COLUMNS.STATUS],
+        });
+      }
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    data: approved,
+    count: approved.length,
+    timestamp: getThailandTime()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Get pending registrations (for checking new users)
+ */
+function getPendingRegistrations() {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+  
+  const pending = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const status = String(row[COLUMNS.STATUS] || '').toLowerCase().trim();
+    
+    if (status === 'pending') {
+      const discordInfo = String(row[COLUMNS.DISCORD_ID] || '');
+      const discordIdMatch = discordInfo.match(/\((\d+)\)/);
+      const discordId = discordIdMatch ? discordIdMatch[1] : null;
+      
+      if (discordId) {
+        pending.push({
+          rowIndex: i + 1,
+          discordId: discordId,
+          discordInfo: discordInfo,
+        });
+      }
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    data: pending,
+    count: pending.length
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Handle POST requests - Save registration or update status
+ */
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     
-    let slipLink = '';
-    if (data.transferSlipBase64) {
-      slipLink = saveImageToDrive(
-        data.transferSlipBase64,
-        data.transferSlipName,
-        data.transferSlipType
-      );
+    // Update status action (from Discord bot)
+    if (data.action === 'updateStatus') {
+      return updateStatus(data.rowIndex, data.newStatus, data.expireAt);
     }
     
-    const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
-    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+    // Default: Save new registration
+    return saveRegistration(data);
     
-    // Format: username (ID)
-    const discordInfo = `${data.discord_username} (${data.discord_id})`;
-    
-    const rowData = [
-      data.connext_id,           // A
-      data.referal_ID,           // B
-      data.nickname,             // C
-      data.name,                 // D
-      data.surname,              // E
-      data.province_country,     // F
-      data.phone_number,         // G
-      slipLink,                  // H
-      'pending',                 // I - status
-      discordInfo,               // J - discord info
-      '',                        // K - expire_at (set when approved)
-      getThailandTime(),         // L - submitted_at
-      '',                        // M - approved_at
-      'FALSE',                   // N - role_added
-    ];
-    
-    sheet.appendRow(rowData);
-    
-    // Add Pending role
-    if (data.discord_id) {
-      const pendingRoleAdded = addPendingRole(data.discord_id);
-      console.log(`📌 Pending role added for ${data.discord_id}: ${pendingRoleAdded}`);
-    }
-    
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        success: true,
-        message: 'Registration saved successfully',
-        driveLink: slipLink,
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     console.error('Error in doPost:', error);
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        success: false,
-        error: error.message,
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.message,
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
+/**
+ * Save new registration to sheet
+ */
+function saveRegistration(data) {
+  // Save transfer slip to Drive
+  let slipLink = '';
+  if (data.transferSlipBase64) {
+    slipLink = saveImageToDrive(
+      data.transferSlipBase64,
+      data.transferSlipName,
+      data.transferSlipType
+    );
+  }
+  
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  
+  // Format: username (ID)
+  const discordInfo = `${data.discord_username} (${data.discord_id})`;
+  
+  const rowData = [
+    data.connext_id,           // A - connext_id
+    data.referal_ID || '',     // B - referal_ID
+    data.nickname || '',       // C - nickname
+    data.name,                 // D - name
+    data.surname,              // E - surname
+    data.province_country,     // F - province_country
+    data.phone_number,         // G - phone_number
+    discordInfo,               // H - discord_id
+    slipLink,                  // I - transfer_slip
+    'pending',                 // J - status
+    getThailandTime(),         // K - submitted_at
+    '',                        // L - expire_at (set when approved)
+  ];
+  
+  sheet.appendRow(rowData);
+  
+  console.log(`✅ Registration saved: ${data.name} ${data.surname}`);
+  
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: 'Registration saved successfully',
+    driveLink: slipLink,
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Update status and expiry in sheet (called by Discord bot)
+ */
+function updateStatus(rowIndex, newStatus, expireAt) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+    
+    // Update status column (J = column 10)
+    sheet.getRange(rowIndex, COLUMNS.STATUS + 1).setValue(newStatus);
+    
+    // Update expire_at if provided (L = column 12)
+    if (expireAt) {
+      sheet.getRange(rowIndex, COLUMNS.EXPIRE_AT + 1).setValue(expireAt);
+    }
+    
+    console.log(`✅ Status updated: Row ${rowIndex} -> ${newStatus}`);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      message: 'Status updated',
+      rowIndex: rowIndex,
+      newStatus: newStatus
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    console.error('Error updating status:', error);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Save image to Google Drive
+ */
 function saveImageToDrive(base64Data, fileName, mimeType) {
   try {
     const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
@@ -164,279 +271,17 @@ function saveImageToDrive(base64Data, fileName, mimeType) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return file.getUrl();
   } catch (error) {
+    console.error('Error saving image:', error);
     return 'Error saving image';
   }
 }
 
 /**
- * IMPORTANT: This must be set up as an INSTALLABLE trigger, not just saved in code
- * Go to: Triggers (clock icon) > Add Trigger > onEditTrigger > From spreadsheet > On edit
+ * Test function - View sheet data
  */
-function onEditTrigger(e) {
-  try {
-    const sheet = e.source.getActiveSheet();
-    const range = e.range;
-    
-    console.log(`📝 onEditTrigger fired: Sheet=${sheet.getName()}, Column=${range.getColumn()}, Row=${range.getRow()}`);
-    
-    if (sheet.getName() !== CONFIG.SHEET_NAME) {
-      console.log('❌ Wrong sheet, ignoring');
-      return;
-    }
-    
-    // Column I (STATUS) = index 9 (1-based)
-    if (range.getColumn() !== COLUMNS.STATUS + 1) {
-      console.log(`❌ Wrong column (${range.getColumn()}), expecting ${COLUMNS.STATUS + 1}`);
-      return;
-    }
-    
-    const newValue = String(e.value || '').toLowerCase();
-    const row = range.getRow();
-    
-    console.log(`📋 Status changed to: "${newValue}" at row ${row}`);
-    
-    if (newValue.includes('approved')) {
-      console.log('✅ Processing approval...');
-      processApproval(sheet, row);
-    }
-  } catch (error) {
-    console.error('❌ Error in onEditTrigger:', error);
-  }
-}
-
-// Keep simple onEdit for backward compatibility (won't work for API calls though)
-function onEdit(e) {
-  onEditTrigger(e);
-}
-
-function extractDiscordId(discordInfo) {
-  // Format: username (ID) or ID (username)
-  const match = String(discordInfo).match(/\((\d+)\)/);
-  if (match) return match[1];
-  
-  // Try format: ID (username)
-  const match2 = String(discordInfo).match(/^(\d+)/);
-  return match2 ? match2[1] : null;
-}
-
-function processApproval(sheet, row) {
-  try {
-    const rowData = sheet.getRange(row, 1, 1, 14).getValues()[0];
-    const discordInfo = rowData[COLUMNS.DISCORD_ID];
-    const roleAdded = String(rowData[COLUMNS.ROLE_ADDED]).toUpperCase();
-    
-    console.log(`🔍 Processing row ${row}: discordInfo=${discordInfo}, roleAdded=${roleAdded}`);
-    
-    if (roleAdded === 'TRUE') {
-      console.log('⏭️ Role already added, skipping');
-      return;
-    }
-    
-    const discordId = extractDiscordId(discordInfo);
-    if (!discordId) {
-      console.log('❌ No Discord ID found in:', discordInfo);
-      return;
-    }
-    
-    console.log(`🎯 Discord ID: ${discordId}`);
-    
-    // Remove Pending role
-    const pendingRemoved = removePendingRole(discordId);
-    console.log(`🔴 Pending role removed: ${pendingRemoved}`);
-    
-    // Add Trial Access role
-    const trialAdded = addTrialAccessRole(discordId);
-    console.log(`🟢 Trial Access role added: ${trialAdded}`);
-    
-    if (trialAdded) {
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + (CONFIG.VIP_DURATION_MINUTES * 60 * 1000));
-      
-      // Update cells
-      sheet.getRange(row, COLUMNS.EXPIRE_AT + 1).setValue(getThailandTime(expiresAt));
-      sheet.getRange(row, COLUMNS.APPROVED_AT + 1).setValue(getThailandTime(now));
-      sheet.getRange(row, COLUMNS.ROLE_ADDED + 1).setValue('TRUE');
-      
-      console.log(`✅ Approved! Expires at: ${getThailandTime(expiresAt)}`);
-    }
-  } catch (error) {
-    console.error('❌ Error processing approval:', error);
-  }
-}
-
-function addPendingRole(discordUserId) {
-  try {
-    const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}/roles/${CONFIG.DISCORD_PENDING_ROLE_ID}`;
-    const response = UrlFetchApp.fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bot ${CONFIG.DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      muteHttpExceptions: true,
-    });
-    const code = response.getResponseCode();
-    console.log(`addPendingRole response: ${code}`);
-    return code === 204 || code === 200;
-  } catch (error) {
-    console.error('Error adding pending role:', error);
-    return false;
-  }
-}
-
-function removePendingRole(discordUserId) {
-  try {
-    const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}/roles/${CONFIG.DISCORD_PENDING_ROLE_ID}`;
-    const response = UrlFetchApp.fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bot ${CONFIG.DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      muteHttpExceptions: true,
-    });
-    const code = response.getResponseCode();
-    console.log(`removePendingRole response: ${code}`);
-    return code === 204 || code === 200;
-  } catch (error) {
-    console.error('Error removing pending role:', error);
-    return false;
-  }
-}
-
-function addTrialAccessRole(discordUserId) {
-  try {
-    const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}/roles/${CONFIG.DISCORD_VIP_ROLE_ID}`;
-    const response = UrlFetchApp.fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bot ${CONFIG.DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      muteHttpExceptions: true,
-    });
-    const code = response.getResponseCode();
-    console.log(`addTrialAccessRole response: ${code}`);
-    return code === 204 || code === 200;
-  } catch (error) {
-    console.error('Error adding trial access role:', error);
-    return false;
-  }
-}
-
-function kickDiscordUser(discordUserId) {
-  try {
-    const url = `https://discord.com/api/v10/guilds/${CONFIG.DISCORD_GUILD_ID}/members/${discordUserId}`;
-    const response = UrlFetchApp.fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bot ${CONFIG.DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      muteHttpExceptions: true,
-    });
-    const code = response.getResponseCode();
-    console.log(`kickDiscordUser response: ${code}`);
-    return code === 204 || code === 200;
-  } catch (error) {
-    console.error('Error kicking user:', error);
-    return false;
-  }
-}
-
-function parseThailandTime(timeString) {
-  const parts = String(timeString).match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
-  if (!parts) return null;
-  const thaiDate = new Date(parts[1], parts[2] - 1, parts[3], parts[4], parts[5], parts[6]);
-  return new Date(thaiDate.getTime() - (7 * 60 * 60 * 1000)); // Convert to UTC
-}
-
-function checkExpiredMembers() {
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
-    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
-    const now = new Date();
-    
-    console.log(`⏰ Running expiry check at ${getThailandTime(now)}`);
-    
-    let checkedCount = 0;
-    let expiredCount = 0;
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const status = String(row[COLUMNS.STATUS] || '').toLowerCase();
-      const expireAt = row[COLUMNS.EXPIRE_AT];
-      const discordInfo = row[COLUMNS.DISCORD_ID];
-      const roleAdded = String(row[COLUMNS.ROLE_ADDED]).toUpperCase();
-      
-      if (!status.includes('approved') || roleAdded !== 'TRUE') continue;
-      
-      checkedCount++;
-      
-      if (expireAt) {
-        const expiryDate = parseThailandTime(expireAt);
-        if (!expiryDate) {
-          console.log(`⚠️ Row ${i + 1}: Invalid expire_at format: ${expireAt}`);
-          continue;
-        }
-        
-        const discordId = extractDiscordId(discordInfo);
-        console.log(`🔍 Row ${i + 1}: ${discordId} expires at ${expireAt}`);
-        
-        if (now > expiryDate) {
-          console.log(`⏰ EXPIRED: ${discordId}`);
-          const kicked = kickDiscordUser(discordId);
-          if (kicked) {
-            sheet.getRange(i + 1, COLUMNS.STATUS + 1).setValue('expired');
-            sheet.getRange(i + 1, COLUMNS.ROLE_ADDED + 1).setValue('FALSE');
-            expiredCount++;
-            console.log(`✅ Kicked and marked expired: ${discordId}`);
-          }
-        }
-      }
-    }
-    
-    console.log(`📊 Checked ${checkedCount} approved users, expired ${expiredCount}`);
-  } catch (error) {
-    console.error('❌ Error checking expired members:', error);
-  }
-}
-
-function testCheckExpiredMembers() {
-  checkExpiredMembers();
-}
-
-/**
- * Run this ONCE to set up triggers
- */
-function setupAllTriggers() {
-  // Delete existing triggers
-  const triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(trigger => ScriptApp.deleteTrigger(trigger));
-  
-  // Create onEdit installable trigger
-  ScriptApp.newTrigger('onEditTrigger')
-    .forSpreadsheet(CONFIG.SHEET_ID)
-    .onEdit()
-    .create();
-  console.log('✅ onEditTrigger installed');
-  
-  // Create time-driven trigger for expiry check
-  ScriptApp.newTrigger('checkExpiredMembers')
-    .timeBased()
-    .everyMinutes(1)
-    .create();
-  console.log('✅ checkExpiredMembers trigger installed (every 1 minute)');
-  
-  console.log('🎉 All triggers set up successfully!');
-}
-
-/**
- * Manual test: Process approval for a specific row
- */
-function testProcessApprovalRow2() {
+function testViewData() {
   const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
   const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-  processApproval(sheet, 2);
+  const data = sheet.getDataRange().getValues();
+  console.log(data);
 }

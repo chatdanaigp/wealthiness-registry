@@ -349,7 +349,7 @@ async function processApproval(reg) {
         const member = await guild.members.fetch(reg.discordId).catch(() => null);
 
         if (!member) {
-            console.error(`❌ Member not found in Discord: ${reg.discordId}`);
+            console.log(`   ⏳ Member ${reg.discordId} not found in server yet. Waiting for them to join...`);
             processedRows.delete(reg.rowIndex);
             return;
         }
@@ -433,20 +433,28 @@ client.once('ready', () => {
     }, POLL_INTERVAL);
 });
 
-// Member Join Event (Add Pending Role)
+// Member Join Event (Add Pending Role AND Check Approval)
 client.on('guildMemberAdd', async member => {
-    console.log(`User joined: ${member.user.tag} (${member.id})`);
+    console.log(`\n👋 User joined: ${member.user.tag} (${member.id})`);
 
+    // 1. Add Pending Role
     const pendingRole = member.guild.roles.cache.get(PENDING_ROLE_ID);
     if (pendingRole) {
         try {
             await member.roles.add(pendingRole);
-            console.log(`Allowed 'Pending' role to ${member.user.tag}`);
+            console.log(`   ✅ Added Pending role`);
         } catch (error) {
-            console.error(`Failed to assign role: ${error.message}`);
+            console.error(`   ❌ Failed to assign Pending role: ${error.message}`);
         }
     } else {
-        console.error(`Pending Role ID ${PENDING_ROLE_ID} not found`);
+        console.error(`   ❌ Pending Role ID ${PENDING_ROLE_ID} not found`);
+    }
+
+    // 2. IMMEDIATE check if they are already approved!
+    if (GOOGLE_APPS_SCRIPT_URL) {
+        console.log(`   🔍 Checking if user is already approved...`);
+        // Trigger a poll immediately. (It filters by processedRows, so safe to call)
+        await processApprovedRegistrations();
     }
 });
 

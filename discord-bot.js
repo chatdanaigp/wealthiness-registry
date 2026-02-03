@@ -105,15 +105,25 @@ function getThailandTime(date = new Date()) {
 // Secure key to access Apps Script (Must match Apps Script CONFIG)
 const BOT_SECRET = 'wealthiness-secure-v1';
 
+// Reliability: Prevent overlapping polls
+let isPolling = false;
+
 async function fetchApprovedRegistrations() {
     if (!GOOGLE_APPS_SCRIPT_URL) {
         console.log('⚠️  GOOGLE_APPS_SCRIPT_URL not configured');
         return [];
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
     try {
         // Add secret to URL to bypass Ghost Bot block
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getApproved&bot_secret=${BOT_SECRET}`);
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getApproved&bot_secret=${BOT_SECRET}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         const result = await response.json();
 
         if (result.success) {
@@ -123,7 +133,11 @@ async function fetchApprovedRegistrations() {
             return [];
         }
     } catch (error) {
-        console.error('❌ Fetch error:', error.message);
+        if (error.name === 'AbortError') {
+            console.error('❌ Fetch timed out (10s limit)');
+        } else {
+            console.error('❌ Fetch error:', error.message);
+        }
         return [];
     }
 }
@@ -134,8 +148,15 @@ async function fetchApprovedRegistrations() {
 async function fetchExpiredRegistrations() {
     if (!GOOGLE_APPS_SCRIPT_URL) return [];
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
     try {
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getExpired&bot_secret=${BOT_SECRET}`);
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?action=getExpired&bot_secret=${BOT_SECRET}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         const result = await response.json();
 
         if (result.success) {
@@ -145,7 +166,11 @@ async function fetchExpiredRegistrations() {
             return [];
         }
     } catch (error) {
-        console.error('❌ Fetch expired error:', error.message);
+        if (error.name === 'AbortError') {
+            console.error('❌ Fetch expired timed out (10s limit)');
+        } else {
+            console.error('❌ Fetch expired error:', error.message);
+        }
         return [];
     }
 }
@@ -275,18 +300,36 @@ async function startTrialTimer(guild, discordId, userName, rowIndex) {
 // ============================================
 // Process Expiry (Poll-based)
 // ============================================
+// ============================================
+// Process Expiry (Poll-based)
+// ============================================
 async function processExpiredRegistrations() {
-    console.log('💀 Polling for expired registrations...');
-    const expiredUsers = await fetchExpiredRegistrations();
-
-    if (expiredUsers.length === 0) {
+    // If already polling, skip this cycle (prevent overlap)
+    if (isPolling) {
+        console.log('⚠️  Skipping polling (Previous cycle still running)');
         return;
     }
 
-    console.log(`   Found ${expiredUsers.length} expired users to kick`);
+    isPolling = true;
 
-    for (const user of expiredUsers) {
-        await kickExpiredUser(user);
+    try {
+        console.log('💀 Polling for expired registrations...');
+        const expiredUsers = await fetchExpiredRegistrations();
+
+        if (expiredUsers.length === 0) {
+            isPolling = false;
+            return;
+        }
+
+        console.log(`   Found ${expiredUsers.length} expired users to kick`);
+
+        for (const user of expiredUsers) {
+            await kickExpiredUser(user);
+        }
+    } catch (error) {
+        console.error('❌ Error in processExpiredRegistrations:', error.message);
+    } finally {
+        isPolling = false;
     }
 }
 
@@ -317,20 +360,35 @@ async function kickExpiredUser(userData) {
 // Process Approved Registrations
 // ============================================
 async function processApprovedRegistrations() {
-    console.log('🔄 Polling for approved registrations...');
-    const registrations = await fetchApprovedRegistrations();
-
-    if (registrations.length === 0) {
-        console.log('   No pending approved registrations');
+    // If already polling, skip this cycle
+    if (isPolling) {
+        console.log('⚠️  Skipping polling (Previous cycle still running)');
         return;
     }
 
-    console.log(`   Found ${registrations.length} registrations to process`);
+    isPolling = true;
 
-    for (const reg of registrations) {
-        if (processedRows.has(reg.rowIndex)) continue; // Skip if already processing in this cycle
+    try {
+        console.log('🔄 Polling for approved registrations...');
+        const registrations = await fetchApprovedRegistrations();
 
-        await processApproval(reg);
+        if (registrations.length === 0) {
+            console.log('   No pending approved registrations');
+            isPolling = false;
+            return;
+        }
+
+        console.log(`   Found ${registrations.length} registrations to process`);
+
+        for (const reg of registrations) {
+            if (processedRows.has(reg.rowIndex)) continue; // Skip if already processing in this cycle
+
+            await processApproval(reg);
+        }
+    } catch (error) {
+        console.error('❌ Error in processApprovedRegistrations:', error.message);
+    } finally {
+        isPolling = false;
     }
 }
 

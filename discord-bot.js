@@ -443,6 +443,60 @@ async function processApproval(reg) {
 // kept clean main logic below
 
 // ============================================
+// Manual Trigger Endpoint (New Feature)
+// ============================================
+healthCheckServer.on('request', async (req, res) => {
+    // Only handle POST /trigger-check
+    if (req.method === 'POST' && req.url === '/trigger-check') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                // Determine if we should poll approved, expired, or both
+                // Default to both for a "full sync"
+                console.log('⚡ Manual trigger received!');
+
+                const results = {
+                    approved: 'Skipped',
+                    expired: 'Skipped'
+                };
+
+                // Run polling immediately (respecting isPolling lock)
+                if (GOOGLE_APPS_SCRIPT_URL) {
+                    // Check Approved
+                    if (!isPolling) {
+                        const approvedCount = (await fetchApprovedRegistrations()).length;
+                        await processApprovedRegistrations();
+                        results.approved = `Checked (Found ${approvedCount} candidates)`;
+                    } else {
+                        results.approved = 'Skipped (Polling in progress)';
+                    }
+
+                    // Check Expired (small delay to avoid race)
+                    setTimeout(async () => {
+                        if (!isPolling) {
+                            await processExpiredRegistrations();
+                        }
+                    }, 2000);
+                    results.expired = 'Triggered asynchronously';
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    message: 'Manual polling triggered',
+                    details: results
+                }));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        });
+        return; // Stop processing other routes
+    }
+});
+
+// ============================================
 // Main Bot Logic
 // ============================================
 client.once('ready', () => {
@@ -502,23 +556,14 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Login with timeout
+// Login (Standard - No Timeout)
 if (DISCORD_BOT_TOKEN) {
     console.log('🔑 Attempting Discord login...');
     console.log(`   Token prefix: ${DISCORD_BOT_TOKEN.slice(0, 10)}...`);
 
-    // Create a timeout promise
-    const loginTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Login timed out after 30 seconds')), 30000);
-    });
-
-    // Race login against timeout
-    Promise.race([
-        client.login(DISCORD_BOT_TOKEN),
-        loginTimeout
-    ])
+    client.login(DISCORD_BOT_TOKEN)
         .then(() => {
-            console.log('🔐 Login promise resolved successfully');
+            console.log('🔐 Login successful');
         })
         .catch(err => {
             console.error('❌ Login failed:', err.message);

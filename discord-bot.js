@@ -78,9 +78,17 @@ const processedRows = new Set();
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMembers,  // REQUIRES: "Server Members Intent" enabled in Discord Developer Portal
         GatewayIntentBits.DirectMessages,
     ],
+});
+
+// Debug Discord connection events
+client.on('debug', info => {
+    // Only log important connection events
+    if (info.includes('Heartbeat') || info.includes('Session') || info.includes('Connecting') || info.includes('Identifying')) {
+        console.log(`[DEBUG] ${info}`);
+    }
 });
 
 // ============================================

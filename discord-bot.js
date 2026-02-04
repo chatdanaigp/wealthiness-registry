@@ -22,6 +22,10 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const http = require('http');
+const dns = require('node:dns');
+
+// Force IPv4 for Discord connection stability on Render
+dns.setDefaultResultOrder('ipv4first');
 
 // Reliability: Prevent overlapping polls
 let isPolling = false;

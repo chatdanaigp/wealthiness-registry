@@ -23,7 +23,8 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const http = require('http');
 
-
+// Reliability: Prevent overlapping polls
+let isPolling = false;
 // ============================================
 // Health Check & Trigger Server
 // ============================================
@@ -53,6 +54,86 @@ const healthCheckServer = http.createServer(async (req, res) => {
             activeTrials: activeTrials.size,
             timestamp: new Date().toISOString()
         }));
+        return;
+    }
+
+    // Admin Dashboard (Simple UI)
+    if (req.method === 'GET' && req.url === '/admin') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Bot Admin</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+                    .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+                    h2 { margin-top: 0; color: #333; }
+                    button { background: #5865F2; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; font-weight: 600; transition: background 0.2s; margin-top: 20px; }
+                    button:hover { background: #4752C4; }
+                    button:disabled { background: #99aab5; cursor: not-allowed; }
+                    .status { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; text-align: left; font-size: 14px; }
+                    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+                    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+                    .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+                    .online { background-color: #3ba55c; }
+                    .offline { background-color: #ed4245; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h2>🤖 Bot Admin Panel</h2>
+                    <p style="color: #666; margin-bottom: 20px;">
+                        Status: 
+                        <span class="status-indicator ${client.isReady() ? 'online' : 'offline'}"></span>
+                        <strong>${client.isReady() ? 'Online' : 'Connecting...'}</strong>
+                    </p>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-size: 14px; color: #555; text-align: left;">
+                        ℹ️ <strong>Manual Sync:</strong><br>
+                        Click below to force the bot to check Google Sheets for new approved members immediately.
+                    </div>
+                    <button id="triggerBtn" onclick="triggerCheck()">⚡ Run Manual Check</button>
+                    <div id="status" class="status"></div>
+                </div>
+
+                <script>
+                    async function triggerCheck() {
+                        const btn = document.getElementById('triggerBtn');
+                        const status = document.getElementById('status');
+                        
+                        btn.disabled = true;
+                        btn.innerText = 'Running Sync...';
+                        status.style.display = 'none';
+
+                        try {
+                            const res = await fetch('/trigger-check', { method: 'POST' });
+                            const data = await res.json();
+                            
+                            status.innerHTML = (data.success ? '✅ ' : '❌ ') + '<strong>' + data.message + '</strong>';
+                            status.className = 'status ' + (data.success ? 'success' : 'error');
+                            
+                            if (data.details) {
+                                status.innerHTML += '<ul style="margin: 10px 0 0 0; padding-left: 20px;">' +
+                                    '<li>Approved: ' + data.details.approved + '</li>' +
+                                    '<li>Expired: ' + data.details.expired + '</li>' +
+                                    '</ul>';
+                            }
+                            status.style.display = 'block';
+
+                        } catch (err) {
+                            status.innerText = '❌ Request failed: ' + err.message;
+                            status.className = 'status error';
+                            status.style.display = 'block';
+                        } finally {
+                            btn.disabled = false;
+                            btn.innerText = '⚡ Run Manual Check';
+                        }
+                    }
+                </script>
+            </body>
+            </html>
+        `);
         return;
     }
 
@@ -140,6 +221,9 @@ const activeTrials = new Map();
 
 // Track processed rows to avoid duplicate processing
 const processedRows = new Set();
+
+
+
 
 // ============================================
 // Discord Client Setup

@@ -494,15 +494,27 @@ client.on('messageCreate', async message => {
     }
 });
 
-// Login
+// Login with timeout
 if (DISCORD_BOT_TOKEN) {
     console.log('🔑 Attempting Discord login...');
-    client.login(DISCORD_BOT_TOKEN)
+    console.log(`   Token prefix: ${DISCORD_BOT_TOKEN.slice(0, 10)}...`);
+
+    // Create a timeout promise
+    const loginTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Login timed out after 30 seconds')), 30000);
+    });
+
+    // Race login against timeout
+    Promise.race([
+        client.login(DISCORD_BOT_TOKEN),
+        loginTimeout
+    ])
         .then(() => {
             console.log('🔐 Login promise resolved successfully');
         })
         .catch(err => {
             console.error('❌ Login failed:', err.message);
+            console.error('   Full error:', err);
         });
 } else {
     console.error('❌ DISCORD_BOT_TOKEN is missing in .env');
@@ -516,3 +528,4 @@ process.on('unhandledRejection', (reason, promise) => {
 client.on('error', error => {
     console.error('❌ Discord client error:', error.message);
 });
+

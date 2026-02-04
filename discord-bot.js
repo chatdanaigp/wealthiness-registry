@@ -496,9 +496,23 @@ client.on('messageCreate', async message => {
 
 // Login
 if (DISCORD_BOT_TOKEN) {
-    client.login(DISCORD_BOT_TOKEN).catch(err => {
-        console.error('Login failed:', err.message);
-    });
+    console.log('🔑 Attempting Discord login...');
+    client.login(DISCORD_BOT_TOKEN)
+        .then(() => {
+            console.log('🔐 Login promise resolved successfully');
+        })
+        .catch(err => {
+            console.error('❌ Login failed:', err.message);
+        });
 } else {
-    console.error('DISCORD_BOT_TOKEN is missing in .env');
+    console.error('❌ DISCORD_BOT_TOKEN is missing in .env');
 }
+
+// Catch unhandled errors
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+client.on('error', error => {
+    console.error('❌ Discord client error:', error.message);
+});

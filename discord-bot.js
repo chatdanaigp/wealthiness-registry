@@ -23,25 +23,94 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const http = require('http');
 
+
 // ============================================
-// Health Check HTTP Server for Render.com
+// Health Check & Trigger Server
 // ============================================
 const PORT = process.env.PORT || 10000;
 
-const healthCheckServer = http.createServer((req, res) => {
+const healthCheckServer = http.createServer(async (req, res) => {
+    // Enable CORS for dashboard access
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
+
+    // Health Check
     if (req.url === '/' || req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
             service: 'wealthiness-registry-bot',
+            loginStatus: client.isReady() ? 'Logged In' : 'Connecting/Offline',
+            ping: client.ws.ping,
             uptime: process.uptime(),
             activeTrials: activeTrials.size,
             timestamp: new Date().toISOString()
         }));
-    } else {
-        res.writeHead(404);
-        res.end('Not Found');
+        return;
     }
+
+    // Manual Trigger Endpoint
+    if (req.method === 'POST' && req.url === '/trigger-check') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                console.log('⚡ Manual trigger received!');
+
+                const results = {
+                    approved: 'Skipped',
+                    expired: 'Skipped'
+                };
+
+                // Run polling immediately (force even if not fully ready, as fetch is independent)
+                if (GOOGLE_APPS_SCRIPT_URL) {
+                    // Check Approved
+                    if (!isPolling) {
+                        // Note: We don't await the full process to keep response fast, 
+                        // but we do await the fetch to confirm connectivity
+                        fetchApprovedRegistrations().then(async (candidates) => {
+                            if (candidates.length > 0) {
+                                console.log(`   Found ${candidates.length} candidates via trigger`);
+                                await processApprovedRegistrations();
+                            }
+                        });
+                        results.approved = `Triggered (Async process started)`;
+                    } else {
+                        results.approved = 'Skipped (Polling in progress)';
+                    }
+
+                    // Check Expired
+                    setTimeout(() => {
+                        if (!isPolling) processExpiredRegistrations();
+                    }, 2000);
+                    results.expired = 'Triggered asynchronously';
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    message: 'Manual polling triggered',
+                    details: results
+                }));
+            } catch (error) {
+                console.error('Trigger Error:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        });
+        return;
+    }
+
+    // 404
+    res.writeHead(404);
+    res.end('Not Found');
 });
 
 healthCheckServer.listen(PORT, '0.0.0.0', () => {
@@ -442,59 +511,6 @@ async function processApproval(reg) {
 // Kick Trial User Legacy Function (Removed/Replaced)
 // kept clean main logic below
 
-// ============================================
-// Manual Trigger Endpoint (New Feature)
-// ============================================
-healthCheckServer.on('request', async (req, res) => {
-    // Only handle POST /trigger-check
-    if (req.method === 'POST' && req.url === '/trigger-check') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', async () => {
-            try {
-                // Determine if we should poll approved, expired, or both
-                // Default to both for a "full sync"
-                console.log('⚡ Manual trigger received!');
-
-                const results = {
-                    approved: 'Skipped',
-                    expired: 'Skipped'
-                };
-
-                // Run polling immediately (respecting isPolling lock)
-                if (GOOGLE_APPS_SCRIPT_URL) {
-                    // Check Approved
-                    if (!isPolling) {
-                        const approvedCount = (await fetchApprovedRegistrations()).length;
-                        await processApprovedRegistrations();
-                        results.approved = `Checked (Found ${approvedCount} candidates)`;
-                    } else {
-                        results.approved = 'Skipped (Polling in progress)';
-                    }
-
-                    // Check Expired (small delay to avoid race)
-                    setTimeout(async () => {
-                        if (!isPolling) {
-                            await processExpiredRegistrations();
-                        }
-                    }, 2000);
-                    results.expired = 'Triggered asynchronously';
-                }
-
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    success: true,
-                    message: 'Manual polling triggered',
-                    details: results
-                }));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: error.message }));
-            }
-        });
-        return; // Stop processing other routes
-    }
-});
 
 // ============================================
 // Main Bot Logic

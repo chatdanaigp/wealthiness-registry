@@ -105,9 +105,6 @@ function getThailandTime(date = new Date()) {
 // Secure key to access Apps Script (Must match Apps Script CONFIG)
 const BOT_SECRET = 'wealthiness-secure-v1';
 
-// Reliability: Prevent overlapping polls
-let isPolling = false;
-
 async function fetchApprovedRegistrations() {
     if (!GOOGLE_APPS_SCRIPT_URL) {
         console.log('⚠️  GOOGLE_APPS_SCRIPT_URL not configured');
@@ -295,29 +292,14 @@ async function startTrialTimer(guild, discordId, userName, rowIndex) {
 }
 
 // ============================================
-// Kick Trial User on Expiry
-// ============================================
-// ============================================
-// Process Expiry (Poll-based)
-// ============================================
-// ============================================
 // Process Expiry (Poll-based)
 // ============================================
 async function processExpiredRegistrations() {
-    // If already polling, skip this cycle (prevent overlap)
-    if (isPolling) {
-        console.log('⚠️  Skipping polling (Previous cycle still running)');
-        return;
-    }
-
-    isPolling = true;
-
     try {
         console.log('💀 Polling for expired registrations...');
         const expiredUsers = await fetchExpiredRegistrations();
 
         if (expiredUsers.length === 0) {
-            isPolling = false;
             return;
         }
 
@@ -328,8 +310,6 @@ async function processExpiredRegistrations() {
         }
     } catch (error) {
         console.error('❌ Error in processExpiredRegistrations:', error.message);
-    } finally {
-        isPolling = false;
     }
 }
 
@@ -360,21 +340,12 @@ async function kickExpiredUser(userData) {
 // Process Approved Registrations
 // ============================================
 async function processApprovedRegistrations() {
-    // If already polling, skip this cycle
-    if (isPolling) {
-        console.log('⚠️  Skipping polling (Previous cycle still running)');
-        return;
-    }
-
-    isPolling = true;
-
     try {
         console.log('🔄 Polling for approved registrations...');
         const registrations = await fetchApprovedRegistrations();
 
         if (registrations.length === 0) {
             console.log('   No pending approved registrations');
-            isPolling = false;
             return;
         }
 
@@ -387,8 +358,6 @@ async function processApprovedRegistrations() {
         }
     } catch (error) {
         console.error('❌ Error in processApprovedRegistrations:', error.message);
-    } finally {
-        isPolling = false;
     }
 }
 

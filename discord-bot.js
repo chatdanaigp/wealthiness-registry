@@ -158,15 +158,20 @@ const healthCheckServer = http.createServer(async (req, res) => {
                 if (GOOGLE_APPS_SCRIPT_URL) {
                     // Check Approved
                     if (!isPolling) {
-                        // Note: We don't await the full process to keep response fast, 
-                        // but we do await the fetch to confirm connectivity
-                        fetchApprovedRegistrations().then(async (candidates) => {
-                            if (candidates.length > 0) {
-                                console.log(`   Found ${candidates.length} candidates via trigger`);
-                                await processApprovedRegistrations();
-                            }
-                        });
-                        results.approved = `Triggered (Async process started)`;
+                        // Check readiness before manual trigger
+                        if (!client.isReady()) {
+                            results.approved = 'Skipped (Bot not connected to Discord)';
+                        } else {
+                            // Note: We don't await the full process to keep response fast, 
+                            // but we do await the fetch to confirm connectivity
+                            fetchApprovedRegistrations().then(async (candidates) => {
+                                if (candidates.length > 0) {
+                                    console.log(`   Found ${candidates.length} candidates via trigger`);
+                                    await processApprovedRegistrations();
+                                }
+                            });
+                            results.approved = `Triggered (Async process started)`;
+                        }
                     } else {
                         results.approved = 'Skipped (Polling in progress)';
                     }
@@ -506,6 +511,10 @@ async function kickExpiredUser(userData) {
 // ============================================
 async function processApprovedRegistrations() {
     try {
+        if (!client.isReady()) {
+            console.log('⏳ Bot not ready yet, skipping approved registration poll...');
+            return;
+        }
         console.log('🔄 Polling for approved registrations...');
         const registrations = await fetchApprovedRegistrations();
 

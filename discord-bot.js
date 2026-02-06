@@ -101,6 +101,18 @@ const healthCheckServer = http.createServer(async (req, res) => {
                     <div id="status" class="status"></div>
                 </div>
 
+                <div class="card" style="margin-top: 20px;">
+                    <h2>🚀 Force Approve User</h2>
+                    <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                        Manually grant Trial Access to a Discord User ID. This bypasses the Google Sheet check.
+                    </p>
+                    <input type="text" id="discordIdInput" placeholder="Discord User ID (e.g. 123456789)" 
+                        style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px;">
+                    
+                    <button id="forceBtn" onclick="forceApprove()" style="background: #e67e22;">🚀 Force Approve</button>
+                    <div id="forceStatus" class="status"></div>
+                </div>
+
                 <script>
                     async function triggerCheck() {
                         const btn = document.getElementById('triggerBtn');
@@ -132,6 +144,44 @@ const healthCheckServer = http.createServer(async (req, res) => {
                         } finally {
                             btn.disabled = false;
                             btn.innerText = '⚡ Run Manual Check';
+                        }
+                    }
+
+                    async function forceApprove() {
+                        const btn = document.getElementById('forceBtn');
+                        const input = document.getElementById('discordIdInput');
+                        const status = document.getElementById('forceStatus');
+                        const discordId = input.value.trim();
+
+                        if (!discordId) {
+                            input.style.borderColor = 'red';
+                            return;
+                        }
+                        input.style.borderColor = '#ddd';
+                        
+                        btn.disabled = true;
+                        btn.innerText = 'Processing...';
+                        status.style.display = 'none';
+
+                        try {
+                            const res = await fetch('/force-approve', { 
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ discordId })
+                            });
+                            const data = await res.json();
+                            
+                            status.innerHTML = (data.success ? '✅ ' : '❌ ') + '<strong> ' + data.message + '</strong>';
+                            status.className = 'status ' + (data.success ? 'success' : 'error');
+                            status.style.display = 'block';
+
+                        } catch (err) {
+                            status.innerText = '❌ Request failed: ' + err.message;
+                            status.className = 'status error';
+                            status.style.display = 'block';
+                        } finally {
+                            btn.disabled = false;
+                            btn.innerText = '🚀 Force Approve';
                         }
                     }
                 </script>
@@ -193,6 +243,63 @@ const healthCheckServer = http.createServer(async (req, res) => {
                 console.error('Trigger Error:', error);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        });
+        return;
+    }
+
+    // Force Approve Endpoint
+    if (req.method === 'POST' && req.url === '/force-approve') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { discordId } = JSON.parse(body);
+                console.log(`🚀 Force approve requested for ID: ${discordId}`);
+
+                if (!discordId) {
+                    throw new Error('Missing Discord ID');
+                }
+
+                const guild = client.guilds.cache.get(DISCORD_GUILD_ID);
+                if (!guild) {
+                    throw new Error('Guild not found');
+                }
+
+                const member = await guild.members.fetch(discordId).catch(() => null);
+                if (!member) {
+                    throw new Error('Member not found in server');
+                }
+
+                // Roles
+                const trialRole = guild.roles.cache.get(TRIAL_ROLE_ID);
+                const pendingRole = guild.roles.cache.get(PENDING_ROLE_ID);
+
+                if (!trialRole) {
+                    throw new Error('Trial Role not configured');
+                }
+
+                await member.roles.add(trialRole);
+                console.log(`   Added Trial Role to ${discordId}`);
+
+                if (pendingRole) {
+                    await member.roles.remove(pendingRole).catch(() => { });
+                    console.log(`   Removed Pending Role from ${discordId}`);
+                }
+
+                // Send DM
+                await sendTrialWelcomeDM(member.user, member.user.username, TRIAL_DURATION_MINUTES);
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    message: `Approved ${member.user.tag}`
+                }));
+
+            } catch (error) {
+                console.error('Force Approve Error:', error.message);
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: error.message }));
             }
         });
         return;

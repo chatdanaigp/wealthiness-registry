@@ -20,7 +20,7 @@
  */
 
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, EmbedBuilder } = require('discord.js');
 const http = require('http');
 const dns = require('node:dns');
 
@@ -348,8 +348,13 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,  // REQUIRES: "Server Members Intent" enabled in Discord Developer Portal
-        GatewayIntentBits.DirectMessages,
         GatewayIntentBits.MessageContent, // REQUIRES: "Message Content Intent" enabled
+    ],
+    partials: [
+        Partials.Channel,
+        Partials.Message,
+        Partials.User,
+        Partials.GuildMember,
     ],
 });
 

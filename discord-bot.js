@@ -349,6 +349,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,  // REQUIRES: "Server Members Intent" enabled in Discord Developer Portal
         GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent, // REQUIRES: "Message Content Intent" enabled
     ],
 });
 

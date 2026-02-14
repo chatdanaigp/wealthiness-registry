@@ -279,7 +279,7 @@ function saveRegistration(data) {
     data.phone_number,         // G - phone_number
     discordInfo,               // H - discord_id
     slipLink,                  // I - transfer_slip
-    'pending',                 // J - status
+    'Approved Trial Access',   // J - status (Auto-approved for bot to process)
     getThailandTime(),         // K - submitted_at
     '',                        // L - expire_at (set when approved)
   ];

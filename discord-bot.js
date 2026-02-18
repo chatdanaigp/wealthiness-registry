@@ -370,7 +370,8 @@ client.on('debug', info => {
 // Helper: Get Thailand Time
 // ============================================
 function getThailandTime(date = new Date()) {
-    return date.toLocaleString('en-GB', {
+    // Output format: YYYY-MM-DD HH:mm:ss (matches Google Apps Script format)
+    const formatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Bangkok',
         year: 'numeric',
         month: '2-digit',
@@ -379,7 +380,10 @@ function getThailandTime(date = new Date()) {
         minute: '2-digit',
         second: '2-digit',
         hour12: false
-    }).replace(',', '').replace(/\//g, '-');
+    });
+    const parts = formatter.formatToParts(date);
+    const get = (type) => parts.find(p => p.type === type)?.value;
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
 // ============================================

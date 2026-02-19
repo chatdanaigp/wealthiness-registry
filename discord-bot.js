@@ -667,7 +667,15 @@ async function processApproval(reg) {
         const member = await guild.members.fetch(reg.discordId).catch(() => null);
 
         if (!member) {
-            console.log(`   ⏳ Member ${reg.discordId} not found in server yet. Waiting for them to join...`);
+            console.log(`   ⏳ Member ${reg.discordId} not found in server yet.`);
+
+            // Legacy Compatibility: Use "Approved - Waiting" so the old script still sees it (contains 'approved')
+            // Only update if not already set to avoid spamming the sheet
+            if (reg.status !== 'Approved - Waiting') {
+                console.log(`      Setting status to 'Approved - Waiting'...`);
+                await updateStatus(reg.rowIndex, 'Approved - Waiting');
+            }
+
             processedRows.delete(reg.rowIndex);
             return;
         }
@@ -714,6 +722,8 @@ async function processApproval(reg) {
 
         } else {
             console.error('❌ Failed to update status in sheet');
+            // CRITICAL FIX: If update failed, remove from processedRows so we retry next poll!
+            processedRows.delete(reg.rowIndex);
         }
 
     } catch (error) {

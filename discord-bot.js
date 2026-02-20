@@ -668,14 +668,6 @@ async function processApproval(reg) {
 
         if (!member) {
             console.log(`   ⏳ Member ${reg.discordId} not found in server yet.`);
-
-            // Legacy Compatibility: Use "Approved - Waiting" so the old script still sees it (contains 'approved')
-            // Only update if not already set to avoid spamming the sheet
-            if (reg.status !== 'Approved - Waiting') {
-                console.log(`      Setting status to 'Approved - Waiting'...`);
-                await updateStatus(reg.rowIndex, 'Approved - Waiting');
-            }
-
             processedRows.delete(reg.rowIndex);
             return;
         }

@@ -296,17 +296,14 @@ export default function RegisterPage() {
                                     value={formData.connextId}
                                     onChange={(e) => {
                                         const val = e.target.value.replace(/\D/g, '');
-                                        if (val.length <= 5) {
-                                            handleInputChange({ target: { name: 'connextId', value: val } });
-                                        }
+                                        handleInputChange({ target: { name: 'connextId', value: val } });
                                     }}
-                                    placeholder="กรอกตัวเลข 5 หลัก"
+                                    placeholder="กรอกตัวเลข Connext ID"
                                     className="form-input"
                                     required
-                                    maxLength={5}
                                     inputMode="numeric"
                                 />
-                                <p className="mt-1 text-xs text-text-secondary">ตัวเลข 5 หลักจาก Connext FX</p>
+                                <p className="mt-1 text-xs text-text-secondary">หมายเลข Connext FX ของคุณ</p>
                             </div>
 
                             {/* Referal ID */}

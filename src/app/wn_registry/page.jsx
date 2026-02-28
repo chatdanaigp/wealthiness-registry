@@ -1,5 +1,10 @@
 'use client';
 
+// ============================================================
+// 🔴 CAMPAIGN CONTROL - Set to true to re-open registration
+const CAMPAIGN_OPEN = false;
+// ============================================================
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -172,6 +177,52 @@ export default function RegisterPage() {
             formData.transferSlip
         );
     };
+
+    // Campaign closed guard
+    if (!CAMPAIGN_OPEN) {
+        return (
+            <main className="min-h-screen relative overflow-hidden flex items-center justify-center">
+                <div className="absolute inset-0">
+                    <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-wealth/10 rounded-full blur-3xl"></div>
+                    <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-wealth-light/5 rounded-full blur-3xl"></div>
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(37,99,235,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(37,99,235,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+                </div>
+                <div className="relative z-10 max-w-lg mx-auto px-4 text-center">
+                    <div className="glass rounded-2xl p-10 sm:p-14 animate-fadeIn">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center mx-auto mb-6">
+                            <span className="text-5xl">🔒</span>
+                        </div>
+                        <h1 className="text-3xl sm:text-4xl font-bold mb-4">
+                            <span className="wealth-gradient">แคมเปญสิ้นสุดแล้ว</span>
+                        </h1>
+                        <p className="text-text-secondary text-lg mb-2">
+                            ขณะนี้ระบบลงทะเบียนปิดชั่วคราวครับ
+                        </p>
+                        <p className="text-text-secondary mb-8">
+                            ติดตามการประกาศรอบถัดไปได้ที่ Discord Server ครับ 👇
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            <a
+                                href="https://discord.gg/MSD6nnSH3j"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-discord inline-flex gap-2 justify-center"
+                            >
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                                </svg>
+                                เข้าร่วม Discord
+                            </a>
+                            <Link href="/" className="btn-wealth inline-flex gap-2 justify-center">
+                                <ArrowLeft className="w-5 h-5" />
+                                กลับหน้าหลัก
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        );
+    }
 
     return (
         <main className="min-h-screen relative overflow-hidden">

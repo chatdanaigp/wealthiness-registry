@@ -1,9 +1,11 @@
-import Link from 'next/link';
-import { Crown, TrendingUp, Shield, ArrowRight } from 'lucide-react';
+// ============================================================
+// Campaign Closed — restore _page_original.jsx to reopen
+// ============================================================
+import { TrendingUp } from 'lucide-react';
 
 export default function Home() {
     return (
-        <main className="min-h-screen relative overflow-hidden">
+        <main className="min-h-screen relative overflow-hidden flex items-center justify-center">
             {/* Background Effects */}
             <div className="absolute inset-0">
                 <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-wealth/10 rounded-full blur-3xl"></div>
@@ -23,50 +25,32 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* Badge */}
-                        <div className="badge-vip mx-auto mb-6">
-                            <Crown className="w-4 h-4" />
-                            <span>Exclusive Access</span>
-                        </div>
-
-                        {/* Headlines */}
-                        <h1 className="text-3xl sm:text-4xl font-bold mb-4">
+                        {/* Brand */}
+                        <h1 className="text-3xl sm:text-4xl font-bold mb-6">
                             <span className="wealth-gradient">Wealthiness</span>
                             <span className="text-white"> Registry</span>
                         </h1>
 
-                        <p className="text-text-secondary text-lg mb-8">
-                            ลงทะเบียนเพื่อรับสิทธิ์{" "}
-                            <span className="text-wealth-light font-semibold">7-Day VIP Access</span>
-                            <br />
-                            เข้าถึง Trading Signals และ Community พิเศษ
-                        </p>
+                        {/* Divider */}
+                        <div className="w-16 h-1 bg-gradient-to-r from-wealth to-wealth-light rounded-full mx-auto mb-8"></div>
 
-                        {/* Features */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 text-left">
-                            <div className="flex items-center gap-3 p-3 rounded-xl bg-black/30 border border-wealth/10">
-                                <Shield className="w-5 h-5 text-wealth-light flex-shrink-0" />
-                                <span className="text-sm text-gray-300">ยืนยันตัวตนผ่าน Discord</span>
-                            </div>
-                            <div className="flex items-center gap-3 p-3 rounded-xl bg-black/30 border border-wealth/10">
-                                <Crown className="w-5 h-5 text-wealth-light flex-shrink-0" />
-                                <span className="text-sm text-gray-300">VIP Role อัตโนมัติ</span>
-                            </div>
+                        {/* Campaign Closed Message */}
+                        <div className="space-y-3 mb-8">
+                            <p className="text-white text-xl font-semibold">
+                                แคมเปญรอบนี้สิ้นสุดแล้วครับ
+                            </p>
+                            <p className="text-text-secondary text-base leading-relaxed">
+                                ขอบคุณทุกท่านที่ให้ความสนใจและเข้าร่วมในครั้งนี้<br />
+                                ขอบคุณจากใจครับ 🙏
+                            </p>
                         </div>
 
-                        {/* CTA Button */}
-                        <Link
-                            href="/wn_registry"
-                            className="btn-wealth w-full py-4 text-lg group"
-                        >
-                            <span>เริ่มลงทะเบียน</span>
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </Link>
-
-                        {/* Footer Note */}
-                        <p className="mt-8 text-xs text-gray-500">
-                            โดยการลงทะเบียน คุณยอมรับข้อกำหนดการใช้งาน
-                        </p>
+                        {/* Divider */}
+                        <div className="pt-6 border-t border-white/10">
+                            <p className="text-text-secondary text-sm">
+                                © Wealthiness Trading Community
+                            </p>
+                        </div>
                     </div>
 
                     {/* Bottom Glow */}

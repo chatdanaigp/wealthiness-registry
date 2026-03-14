@@ -37,7 +37,7 @@ export default function Home() {
 
                         <p className="text-text-secondary text-lg mb-8">
                             ลงทะเบียนเพื่อรับสิทธิ์{" "}
-                            <span className="text-wealth-light font-semibold">7-Day VIP Access</span>
+                            <span className="text-wealth-light font-semibold">15-Day VIP Access</span>
                             <br />
                             เข้าถึง Trading Signals และ Community พิเศษ
                         </p>

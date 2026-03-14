@@ -197,7 +197,7 @@ export default function RegisterPage() {
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
                         <Crown className="w-4 h-4 text-wealth-light" />
-                        <span className="text-sm text-wealth-light font-medium">7-Day VIP Access</span>
+                        <span className="text-sm text-wealth-light font-medium">15-Day VIP Access</span>
                     </div>
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
                         <span className="wealth-gradient">ลงทะเบียนสมาชิก</span>
@@ -493,7 +493,7 @@ export default function RegisterPage() {
                             </p>
                             <p className="flex items-start gap-2">
                                 <CheckCircle className="w-4 h-4 text-green flex-shrink-0 mt-0.5" />
-                                <span className="text-left">VIP Role จะมีอายุ 7 วัน นับจากวันที่อนุมัติ</span>
+                                <span className="text-left">VIP Role จะมีอายุ 15 วัน นับจากวันที่อนุมัติ</span>
                             </p>
                         </div>
 
@@ -531,7 +531,7 @@ export default function RegisterPage() {
                             <p className="text-text-secondary mb-2">สถานะสมาชิก</p>
                             <div className="flex items-center justify-center gap-2 text-wealth-light text-xl font-bold mb-4">
                                 <Crown className="w-6 h-6" />
-                                7-Day VIP Access
+                                15-Day VIP Access
                             </div>
 
                             {formData.expiresAt && (

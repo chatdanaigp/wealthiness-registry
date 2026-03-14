@@ -14,7 +14,7 @@ export default function RootLayout({ children }) {
         <html lang="th" className="scroll-smooth">
             <head>
                 <title>Wealthiness Registry | VIP Member Registration</title>
-                <meta name="description" content="Register for exclusive 7-Day VIP Access to Wealthiness trading community." />
+                <meta name="description" content="Register for exclusive 15-Day VIP Access to Wealthiness trading community." />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <link rel="icon" href="/favicon.ico" />
             </head>

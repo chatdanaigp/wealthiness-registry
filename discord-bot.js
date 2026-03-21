@@ -664,10 +664,13 @@ async function processApproval(reg) {
 
     try {
         // 1. Find Member
-        const member = await guild.members.fetch(reg.discordId).catch(() => null);
+        const member = await guild.members.fetch(reg.discordId).catch((err) => {
+            console.log(`   ❌ Member fetch error for ${reg.discordId} (${reg.name}): ${err.message}`);
+            return null;
+        });
 
         if (!member) {
-            console.log(`   ⏳ Member ${reg.discordId} not found in server yet.`);
+            console.log(`   ⏳ Member ${reg.discordId} not found in server yet (Checked Guild ${guild.id}).`);
             processedRows.delete(reg.rowIndex);
             return;
         }

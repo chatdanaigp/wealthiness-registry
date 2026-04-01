@@ -1,3 +1,5 @@
+'use client';
+
 import { Crown, TrendingUp, Sparkles, Heart } from 'lucide-react';
 
 export default function Home() {

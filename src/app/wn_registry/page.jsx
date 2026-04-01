@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'react-router-dom'; // Using standard link replacement or just plain JS if needed, 
-// but since it's Next.js, let's use standard's Link or just a simple anchor for now to keep it minimal 
-// or since it's a closed page, we don't even need links actually.
+import Link from 'next/link';
 
 import { 
     AlertCircle, 
